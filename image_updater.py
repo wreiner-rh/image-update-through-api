@@ -107,7 +107,25 @@ class ImageUpdater:
         return latest_img
 
     def download_image(self, img):
-        pass
+        return True
+
+    def update_state_for_image(self, img_state_identifier, img):
+        if not img_state_identifier in self.state:
+            self.state[img_state_identifier] = {}
+
+        self.state[img_state_identifier]["checksum"] = img["checksum"]
+
+        self.write_state_file()
+
+    def are_checksums_equal(self, img_state_identifier, latest_img):
+        if not img_state_identifier in self.state:
+            return False
+
+        existing_checksum = self.state[img_state_identifier]["checksum"]
+        if existing_checksum != latest_img["checksum"]:
+            return False
+
+        return True
 
     def update_check(self):
         access_token = image_updater.get_access_token()
@@ -120,7 +138,13 @@ class ImageUpdater:
                 latest_img = self.get_latest_qcow_image_url(rhel_major_version["rhel_major"], arch)
                 print(f"latest img extracted from API {latest_img}")
 
-                self.download_image(latest_img)
+                img_state_identifier = f'{rhel_major_version["rhel_major"]}-{arch}'
+                if self.are_checksums_equal(img_state_identifier, latest_img):
+                    print("checksums are equal, no need to download image ..")
+                    continue
+
+                if self.download_image(latest_img):
+                    self.update_state_for_image(img_state_identifier, latest_img)
 
     def upload_image_to_glance(self):
         pass
