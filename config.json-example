@@ -8,7 +8,7 @@
 
     "state_file": "/var/lib/image_downloader/state.json",
 
-    rhel_major_versions_to_track: [
+    "rhel_major_versions_to_track": [
         {
             "rhel_major": 8,
             "architectures": ["x86_64"]

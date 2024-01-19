@@ -1,78 +1,110 @@
 #!/usr/bin/python
+
+import argparse
+import json
 import re
 import requests
 import sys
 
-OFFLINE_TOKEN = "...."
-ACCESS_TOKEN_URL = "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
-IMG_LIST_URL = "https://api.access.redhat.com/management/v1/images/cset"
-DOWNLOAD_DESTINATION = "/tmp/latest_images"
+REQUIRED_CONFIG_PARAMETERS = [
+    "offline_token",
+    "access_token_url",
+    "rhel_major_versions_to_track",
+    "img_list_url"
+]
 
-def build_img_list_url(base_url, rhel_major_version, architecture, limit, offset=0):
-    return f"{base_url}/rhel-{rhel_major_version}-for-{architecture}-baseos-isos?limit={limit}&offset={offset}"
 
-def get_access_token(access_token_url, offline_token):
-    data = {
-        "grant_type": "refresh_token",
-        "client_id": "rhsm-api",
-        "refresh_token": offline_token
-    }
+class ImageUpdater:
+    def __init__(self, config_file):
+        self.config = self.read_config_file(config_file)
 
-    response = requests.post(access_token_url, data=data)
-    response_json = response.json()
-    if "access_token" in response_json:
-        return response_json["access_token"]
+    def read_config_file(self, config_file):
+        with open(config_file) as f:
+            config = json.load(f)
 
-    print(f'There was an error fetching an access_token:\n{response_json}')
-    return  None
+        for config_parameter in REQUIRED_CONFIG_PARAMETERS:
+            if not config_parameter in config:
+                print(f"Parmeter '{config_parameter}' not found in config, exiting.")
+                sys.exit(1)
 
-def get_latest_qcow_image_url(access_token, img_list_url, rhel_major_version, architecture):
-    url = build_img_list_url(img_list_url, rhel_major_version, architecture, 100)
-    print(f"will fetch available image data from {url} ..")
+        return config
 
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
+    def get_access_token(self):
+        access_token_url = self.config["access_token_url"]
+        offline_token = self.config["offline_token"]
 
-    response = requests.get(url, headers=headers)
-    response_json = response.json()
+        data = {
+            "grant_type": "refresh_token",
+            "client_id": "rhsm-api",
+            "refresh_token": offline_token
+        }
 
-    # print(response_json)
+        response = requests.post(access_token_url, data=data)
+        response_json = response.json()
+        if "access_token" in response_json:
+            self.access_token = response_json["access_token"]
+            return response_json["access_token"]
 
-    latest_img = None
-    max = -1
+        print(f'There was an error fetching an access_token:\n{response_json}')
+        return None
 
-    pattern = f"rhel-{rhel_major_version}.(\d+)-{architecture}-kvm.qcow2"
-    for img in response_json["body"]:
-        imggrp = re.match(pattern, img["filename"])
-        if not imggrp:
-            continue
+    def build_img_list_url(self, rhel_major_version, architecture, limit, offset=0):
+        base_url = self.config["img_list_url"]
+        return f"{base_url}/rhel-{rhel_major_version}-for-{architecture}-baseos-isos?limit={limit}&offset={offset}"
 
-        if max < int(imggrp.group(1)):
-            max = int(imggrp.group(1))
-            latest_img = img
+    def get_latest_qcow_image_url(self, rhel_major_version, architecture):
+        url = self.build_img_list_url(rhel_major_version, architecture, 100)
+        print(f"will fetch available image data from {url} ..")
 
-    return latest_img
+        headers = {
+            "Authorization": f"Bearer {self.access_token}"
+        }
 
-def download_image(img, destination):
-    pass
+        response = requests.get(url, headers=headers)
+        response_json = response.json()
 
-def upload_image_to_glance():
-    pass
+        # print(response_json)
+
+        latest_img = None
+        max = -1
+
+        pattern = f"rhel-{rhel_major_version}.(\d+)-{architecture}-kvm.qcow2"
+        for img in response_json["body"]:
+            imggrp = re.match(pattern, img["filename"])
+            if not imggrp:
+                continue
+
+            if max < int(imggrp.group(1)):
+                max = int(imggrp.group(1))
+                latest_img = img
+
+        return latest_img
+
+    def download_image(self, img):
+        pass
+
+    def update_check(self):
+        access_token = image_updater.get_access_token()
+        if not access_token:
+            print("error in fetchin access token, exiting.")
+            sys.exit(1)
+
+        for rhel_major_version in self.config["rhel_major_versions_to_track"]:
+            for arch in rhel_major_version["architectures"]:
+                latest_img = self.get_latest_qcow_image_url(rhel_major_version["rhel_major"], arch)
+                print(f"latest img extracted from API {latest_img}")
+
+                self.download_image(latest_img)
+
+    def upload_image_to_glance(self):
+        pass
+
 
 if __name__ == "__main__":
-    access_token = get_access_token(ACCESS_TOKEN_URL, OFFLINE_TOKEN)
-    if not access_token:
-        print("error in fetchin access token, exiting.")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", help="Location of config file in JSON format", nargs='?', default='/etc/image_updater_config.json')
+    args = parser.parse_args()
+    config_file = args.config
 
-    # print(access_token)
-    supported_major_versions = [8, 9]
-    for major_version in supported_major_versions:
-        img = get_latest_qcow_image_url(access_token, IMG_LIST_URL, major_version, "x86_64")
-
-        print(f'\nImage for major {major_version}:\n{img["filename"]}')
-        print(f'Image download url for major {major_version}:\n{img["downloadHref"]}')
-        print(f'Image checksum\n{img["checksum"]}\n')
-
-        download_image(img, DOWNLOAD_DESTINATION)
+    image_updater = ImageUpdater(config_file)
+    image_updater.update_check()
