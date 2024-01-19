@@ -12,7 +12,9 @@ REQUIRED_CONFIG_PARAMETERS = [
     "offline_token",
     "access_token_url",
     "rhel_major_versions_to_track",
-    "img_list_url"
+    "img_list_url",
+    "download_destination",
+    "state_file"
 ]
 
 
