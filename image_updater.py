@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import os
+import pathlib
 import re
 import requests
 import sys
@@ -17,6 +19,7 @@ REQUIRED_CONFIG_PARAMETERS = [
 class ImageUpdater:
     def __init__(self, config_file):
         self.config = self.read_config_file(config_file)
+        self.state = self.read_state_file()
 
     def read_config_file(self, config_file):
         with open(config_file) as f:
@@ -28,6 +31,29 @@ class ImageUpdater:
                 sys.exit(1)
 
         return config
+
+    def read_state_file(self):
+        state_file = self.config["state_file"]
+
+        # on the first run there is no state file yet so we return an empty dict
+        if not os.path.exists(state_file):
+            return {}
+
+        with open(state_file) as f:
+            return json.load(f)
+
+    def write_state_file(self):
+        statefile = self.config["state_file"]
+        statefile_parent_directory = pathlib.Path(statefile).parent
+        self.create_directory(statefile_parent_directory)
+
+        with open(statefile, "w") as outfile:
+            json.dump(self.state, outfile)
+
+    def create_directory(self, directoy_to_create):
+        if not os.path.exists(directoy_to_create):
+            print(f"will create directory {directoy_to_create} ..")
+            os.mkdir(directoy_to_create)
 
     def get_access_token(self):
         access_token_url = self.config["access_token_url"]
