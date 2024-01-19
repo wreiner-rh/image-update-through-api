@@ -110,7 +110,26 @@ class ImageUpdater:
         # make sure download destination directory exists
         self.create_directory_if_not_exitsts(self.config["download_destination"])
 
+        url = img["downloadHref"]
+        filename = img["filename"]
+        filepath = os.path.join(self.config["download_destination"], filename)
 
+        headers = {
+            "Authorization": f"Bearer {self.access_token}"
+        }
+
+        try:
+            with requests.get(url, stream=True, headers=headers) as response:
+                response.raise_for_status()
+                print(f"image size reported is {response.headers.get('content-length', 0)}, starting download (this will take a while) ..")
+                with open(filepath, 'wb') as file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        file.write(chunk)
+        except Exception as e:
+            print(f"error downloading image - {e} ..")
+            return False
+
+        print("download complete ..")
 
         return True
 
