@@ -1,6 +1,6 @@
 # image_updater
 
-This script checks the Red Hat access API for new versions of RHEL qcow2 images and downloads those images.
+This script checks the [Red Hat Access Management API](https://access.redhat.com/management/api) for new versions of RHEL qcow2 images and downloads those images.
 
 ## Configuation
 
