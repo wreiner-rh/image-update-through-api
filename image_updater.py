@@ -45,12 +45,12 @@ class ImageUpdater:
     def write_state_file(self):
         statefile = self.config["state_file"]
         statefile_parent_directory = pathlib.Path(statefile).parent
-        self.create_directory(statefile_parent_directory)
+        self.create_directory_if_not_exitsts(statefile_parent_directory)
 
         with open(statefile, "w") as outfile:
             json.dump(self.state, outfile)
 
-    def create_directory(self, directoy_to_create):
+    def create_directory_if_not_exitsts(self, directoy_to_create):
         if not os.path.exists(directoy_to_create):
             print(f"will create directory {directoy_to_create} ..")
             os.mkdir(directoy_to_create)
@@ -107,6 +107,11 @@ class ImageUpdater:
         return latest_img
 
     def download_image(self, img):
+        # make sure download destination directory exists
+        self.create_directory_if_not_exitsts(self.config["download_destination"])
+
+
+
         return True
 
     def update_state_for_image(self, img_state_identifier, img):
